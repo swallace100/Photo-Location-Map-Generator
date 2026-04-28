@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCOUT — Batch Map Export</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap');
+
+  :root {
+    --bg: #f5f2ec;
+    --bg2: #ede9e0;
+    --ink: #1a1814;
+    --ink2: #6b6355;
+    --ink3: #a89e8a;
+    --accent: #c0392b;
+    --accent2: #8b2520;
+    --green: #2d6a4f;
+    --border: #d4ccba;
+    --card: #ffffff;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+  }
+
+  /* Masthead */
+  .masthead {
+    background: var(--ink);
+    color: var(--bg);
+    padding: 0 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 56px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .masthead-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px;
+    letter-spacing: 2px;
+  }
+  .masthead-sub {
+    font-size: 9px;
+    letter-spacing: 4px;
+    color: var(--ink3);
+    text-transform: uppercase;
+  }
+  .masthead-right {
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--ink3);
+  }
+
+  /* Rule */
+  .rule { height: 1px; background: var(--border); }
+  .rule-thick { height: 3px; background: var(--ink); }
+
+  /* Main layout */
+  .layout {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 40px;
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 48px;
+  }
+
+  /* Drop zone */
+  .drop-zone {
+    border: 2px dashed var(--border);
+    padding: 48px 32px;
+    text-align: center;
+    cursor: pointer;
+    background: var(--card);
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .drop-zone::before {
+    content: '';
+    position: absolute;
+    inset: 6px;
+    border: 1px dashed var(--border);
+    pointer-events: none;
+    opacity: 0.5;
+  }
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--accent);
+    background: #fdf9f8;
+  }
+  .drop-zone.drag-over::before { border-color: var(--accent); }
+  .drop-icon { font-size: 32px; margin-bottom: 16px; opacity: 0.4; }
+  .drop-label {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px;
+    color: var(--ink2);
+    margin-bottom: 8px;
+  }
+  .drop-sub { font-size: 10px; letter-spacing: 2px; color: var(--ink3); }
+
+  /* Stats bar */
+  .stats-bar {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--border);
+    background: var(--card);
+    margin-top: 24px;
+    overflow: hidden;
+  }
+  .stat {
+    flex: 1;
+    padding: 16px 20px;
+    border-right: 1px solid var(--border);
+    text-align: center;
+  }
+  .stat:last-child { border-right: none; }
+  .stat-num {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    color: var(--ink);
+    display: block;
+  }
+  .stat-label { font-size: 9px; letter-spacing: 2px; color: var(--ink3); }
+
+  /* Photo list */
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    margin: 32px 0 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 14px;
+    letter-spacing: 1px;
+  }
+  .section-count { font-size: 10px; color: var(--ink3); letter-spacing: 2px; }
+
+  .photo-list { display: flex; flex-direction: column; gap: 2px; }
+
+  .photo-row {
+    display: grid;
+    grid-template-columns: 48px 1fr 120px 28px;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background: var(--card);
+    border: 1px solid transparent;
+    transition: all 0.15s;
+    cursor: default;
+  }
+  .photo-row:hover { border-color: var(--border); }
+  .photo-row.no-gps { opacity: 0.5; }
+
+  .photo-thumb {
+    width: 48px;
+    height: 36px;
+    object-fit: cover;
+    display: block;
+    background: var(--bg2);
+  }
+  .photo-thumb-placeholder {
+    width: 48px;
+    height: 36px;
+    background: var(--bg2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    opacity: 0.3;
+  }
+  .photo-name {
+    font-size: 11px;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .photo-coords {
+    font-size: 10px;
+    color: var(--ink3);
+    letter-spacing: 0.5px;
+  }
+  .photo-badge {
+    font-size: 8px;
+    letter-spacing: 1px;
+    padding: 2px 6px;
+    text-align: center;
+  }
+  .badge-gps { background: #d4edda; color: var(--green); }
+  .badge-nogps { background: #f8d7da; color: var(--accent); }
+
+  .remove-btn {
+    background: none;
+    border: none;
+    color: var(--ink3);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px;
+    line-height: 1;
+    transition: color 0.15s;
+  }
+  .remove-btn:hover { color: var(--accent); }
+
+  /* Sidebar */
+  .sidebar { position: sticky; top: 96px; align-self: start; }
+
+  .sidebar-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+  .sidebar-card-head {
+    background: var(--ink);
+    color: var(--bg);
+    padding: 10px 16px;
+    font-size: 9px;
+    letter-spacing: 3px;
+  }
+  .sidebar-card-body { padding: 20px 16px; }
+
+  .instructions ol {
+    padding-left: 16px;
+    font-size: 11px;
+    line-height: 2;
+    color: var(--ink2);
+    list-style-type: decimal;
+  }
+  .instructions a { color: var(--accent); }
+
+  /* Buttons */
+  .btn {
+    display: block;
+    width: 100%;
+    padding: 14px 20px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+    text-align: center;
+    text-decoration: none;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: white;
+  }
+  .btn-primary:hover { background: var(--accent2); }
+  .btn-primary:disabled { background: var(--ink3); cursor: not-allowed; }
+  .btn-secondary {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--ink2);
+    margin-top: 8px;
+  }
+  .btn-secondary:hover { border-color: var(--ink2); color: var(--ink); }
+
+  .map-link-box {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    padding: 12px;
+    margin-top: 12px;
+    font-size: 10px;
+    word-break: break-all;
+    color: var(--ink2);
+    line-height: 1.6;
+  }
+
+  /* Empty state */
+  .empty { text-align: center; padding: 40px; color: var(--ink3); font-size: 11px; letter-spacing: 1px; }
+
+  /* Decorative header line */
+  .header-rule {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 32px;
+    margin-top: 8px;
+  }
+  .header-rule-line { flex: 1; height: 1px; background: var(--border); }
+  .header-rule-text {
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    font-size: 13px;
+    color: var(--ink3);
+    white-space: nowrap;
+  }
+
+  @media (max-width: 768px) {
+    .layout { grid-template-columns: 1fr; padding: 20px; }
+    .sidebar { position: static; }
+  }
+</style>
+</head>
+<body>
+
+<div class="masthead">
+  <div>
+    <div class="masthead-title">Scout</div>
+  </div>
+  <div class="masthead-sub">Batch Map Export</div>
+  <div class="masthead-right">swallacephoto</div>
+</div>
+<div class="rule-thick"></div>
+
+<div class="layout">
+  <!-- Left column -->
+  <div>
+    <div class="header-rule">
+      <div class="header-rule-line"></div>
+      <div class="header-rule-text">Drop your location photos, export to Google My Maps</div>
+      <div class="header-rule-line"></div>
+    </div>
+
+    <!-- Drop zone -->
+    <div class="drop-zone" id="dropZone">
+      <div class="drop-icon">⊕</div>
+      <div class="drop-label">Drop a folder or select photos</div>
+      <div class="drop-sub" style="margin-top:8px">JPEG · HEIC · Any photo with GPS data</div>
+      <input type="file" id="fileInput" accept="image/*" multiple style="position:absolute;inset:0;opacity:0;cursor:pointer">
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-bar">
+      <div class="stat">
+        <span class="stat-num" id="totalCount">0</span>
+        <span class="stat-label">Photos</span>
+      </div>
+      <div class="stat">
+        <span class="stat-num" id="gpsCount" style="color:var(--green)">0</span>
+        <span class="stat-label">With GPS</span>
+      </div>
+      <div class="stat">
+        <span class="stat-num" id="noGpsCount" style="color:var(--accent)">0</span>
+        <span class="stat-label">No GPS</span>
+      </div>
+    </div>
+
+    <!-- Photo list -->
+    <div class="section-head">
+      <div class="section-title">Loaded Photos</div>
+      <div class="section-count" id="listCount">—</div>
+      <button class="btn btn-secondary" id="clearBtn" style="width:auto;padding:4px 12px;font-size:9px;margin-left:auto" onclick="clearAll()">CLEAR ALL</button>
+    </div>
+
+    <div class="photo-list" id="photoList">
+      <div class="empty">No photos loaded yet</div>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-card">
+      <div class="sidebar-card-head">EXPORT KML</div>
+      <div class="sidebar-card-body">
+        <p style="font-size:11px;color:var(--ink2);line-height:1.7;margin-bottom:16px">
+          Downloads a KML file with all GPS-tagged photos as map pins. Import directly into Google My Maps.
+        </p>
+        <button class="btn btn-primary" id="exportBtn" onclick="exportKML()" disabled>
+          DOWNLOAD KML FILE
+        </button>
+        <button class="btn btn-secondary" onclick="openMyMaps()">
+          OPEN GOOGLE MY MAPS →
+        </button>
+      </div>
+    </div>
+
+    <div class="sidebar-card">
+      <div class="sidebar-card-head">HOW TO IMPORT</div>
+      <div class="sidebar-card-body instructions">
+        <ol>
+          <li>Click <strong>Download KML File</strong></li>
+          <li>Open <a href="https://mymaps.google.com" target="_blank">Google My Maps</a></li>
+          <li>Create a new map</li>
+          <li>Click <strong>Import</strong> in the layer panel</li>
+          <li>Upload the KML file</li>
+          <li>All your pins appear instantly</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="sidebar-card">
+      <div class="sidebar-card-head">QUICK VIEW LINK</div>
+      <div class="sidebar-card-body">
+        <p style="font-size:11px;color:var(--ink2);margin-bottom:12px;line-height:1.6">
+          Opens Google Maps centered on your first GPS location.
+        </p>
+        <button class="btn btn-secondary" id="quickViewBtn" onclick="quickView()" disabled style="margin-top:0">
+          OPEN FIRST PIN IN MAPS
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── EXIF GPS Parser ──────────────────────────────────────────────────
+function parseExifGPS(buffer) {
+  const data = new DataView(buffer);
+  if (data.getUint16(0) !== 0xFFD8) return null;
+
+  let offset = 2;
+  while (offset < data.byteLength - 4) {
+    const marker = data.getUint16(offset);
+    offset += 2;
+    if (marker === 0xFFE1) {
+      const length = data.getUint16(offset);
+      try {
+        const header = String.fromCharCode(
+          data.getUint8(offset+2), data.getUint8(offset+3),
+          data.getUint8(offset+4), data.getUint8(offset+5)
+        );
+        if (header === 'Exif') {
+          return parseExifIFD(buffer, offset + 8);
+        }
+      } catch(e) {}
+      offset += length;
+    } else if ((marker & 0xFF00) === 0xFF00) {
+      if (offset + 2 > data.byteLength) break;
+      offset += data.getUint16(offset);
+    } else break;
+  }
+  return null;
+}
+
+function parseExifIFD(buffer, start) {
+  try {
+    const data = new DataView(buffer, start);
+    const le = data.getUint16(0) === 0x4949;
+    const r16 = o => data.getUint16(o, le);
+    const r32 = o => data.getUint32(o, le);
+
+    const ifdOff = r32(4);
+    const tags = readIFD(data, ifdOff, le);
+    const gpsPtr = tags[0x8825];
+    if (gpsPtr == null) return null;
+
+    const gpsTags = readIFD(data, gpsPtr, le);
+    return extractGPS(gpsTags, data, le, buffer, start);
+  } catch(e) { return null; }
+}
+
+function readIFD(data, offset, le) {
+  const tags = {};
+  try {
+    const count = data.getUint16(offset, le);
+    for (let i = 0; i < count; i++) {
+      const e = offset + 2 + i * 12;
+      const tag  = data.getUint16(e, le);
+      const type = data.getUint16(e+2, le);
+      const num  = data.getUint32(e+4, le);
+      const valOrOff = data.getUint32(e+8, le);
+      if (type === 4 && num === 1) tags[tag] = valOrOff;
+      else if (type === 5) tags[tag] = { rational:true, offset:valOrOff, count:num, le };
+      else if (type === 2 && num <= 4) {
+        let s = '';
+        for (let b = 0; b < num-1; b++) s += String.fromCharCode(data.getUint8(e+8+b));
+        tags[tag] = s;
+      }
+    }
+  } catch(e) {}
+  return tags;
+}
+
+function readRat(info, idx, data) {
+  try {
+    const base = info.offset + idx * 8;
+    const n = data.getUint32(base, info.le);
+    const d = data.getUint32(base+4, info.le);
+    return d === 0 ? 0 : n / d;
+  } catch(e) { return 0; }
+}
+
+function extractGPS(tags, data, le, buffer, start) {
+  try {
+    const latRef = tags[1];
+    const latI   = tags[2];
+    const lonRef = tags[3];
+    const lonI   = tags[4];
+    if (!latI || !lonI) return null;
+
+    const toDD = (info) => {
+      const d = readRat(info, 0, data);
+      const m = readRat(info, 1, data);
+      const s = readRat(info, 2, data);
+      return d + m/60 + s/3600;
+    };
+    let lat = toDD(latI);
+    let lon = toDD(lonI);
+    if (latRef === 'S') lat = -lat;
+    if (lonRef === 'W') lon = -lon;
+    if (lat === 0 && lon === 0) return null;
+    return { lat, lon };
+  } catch(e) { return null; }
+}
+
+// ─── State ────────────────────────────────────────────────────────────
+const photos = [];
+
+// ─── File handling ────────────────────────────────────────────────────
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  handleFiles(Array.from(e.dataTransfer.files));
+});
+fileInput.addEventListener('change', e => handleFiles(Array.from(e.target.files)));
+
+async function handleFiles(files) {
+  const imageFiles = files.filter(f => f.type.startsWith('image/') || f.name.toLowerCase().match(/\.(jpg|jpeg|heic|heif|png|tiff)$/));
+  for (const file of imageFiles) {
+    if (photos.find(p => p.name === file.name && p.size === file.size)) continue;
+    const buffer = await file.arrayBuffer();
+    const gps = parseExifGPS(buffer);
+    const url = URL.createObjectURL(file);
+    photos.push({ name: file.name, size: file.size, url, gps, date: file.lastModified });
+  }
+  render();
+}
+
+// ─── Render ───────────────────────────────────────────────────────────
+function render() {
+  const total = photos.length;
+  const withGps = photos.filter(p => p.gps).length;
+  const noGps = total - withGps;
+
+  document.getElementById('totalCount').textContent = total;
+  document.getElementById('gpsCount').textContent = withGps;
+  document.getElementById('noGpsCount').textContent = noGps;
+  document.getElementById('listCount').textContent = total ? `${total} FILE${total !== 1 ? 'S' : ''}` : '—';
+  document.getElementById('exportBtn').disabled = withGps === 0;
+  document.getElementById('quickViewBtn').disabled = withGps === 0;
+
+  const list = document.getElementById('photoList');
+  if (photos.length === 0) {
+    list.innerHTML = '<div class="empty">No photos loaded yet</div>';
+    return;
+  }
+
+  list.innerHTML = photos.map((p, i) => `
+    <div class="photo-row ${p.gps ? '' : 'no-gps'}">
+      <img class="photo-thumb" src="${p.url}" alt="" onerror="this.style.display='none'">
+      <div>
+        <div class="photo-name">${p.name}</div>
+        <div class="photo-coords">${p.gps ? `${p.gps.lat.toFixed(5)}°, ${p.gps.lon.toFixed(5)}°` : 'No GPS data'}</div>
+      </div>
+      <div class="photo-badge ${p.gps ? 'badge-gps' : 'badge-nogps'}">${p.gps ? 'GPS ✓' : 'NO GPS'}</div>
+      <button class="remove-btn" onclick="removePhoto(${i})" title="Remove">×</button>
+    </div>
+  `).join('');
+}
+
+function removePhoto(i) {
+  URL.revokeObjectURL(photos[i].url);
+  photos.splice(i, 1);
+  render();
+}
+
+function clearAll() {
+  photos.forEach(p => URL.revokeObjectURL(p.url));
+  photos.length = 0;
+  render();
+}
+
+// ─── KML Export ───────────────────────────────────────────────────────
+function exportKML() {
+  const gpsPhotos = photos.filter(p => p.gps);
+  if (!gpsPhotos.length) return;
+
+  const placemarks = gpsPhotos.map(p => `
+  <Placemark>
+    <name>${escapeXml(p.name.replace(/\.[^.]+$/, ''))}</name>
+    <description>${escapeXml(p.name)}</description>
+    <Point>
+      <coordinates>${p.gps.lon},${p.gps.lat},0</coordinates>
+    </Point>
+  </Placemark>`).join('\n');
+
+  const kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>swallacephoto — Scout Locations</name>
+    <description>Photo locations exported from Scout. ${gpsPhotos.length} pins.</description>
+${placemarks}
+  </Document>
+</kml>`;
+
+  const blob = new Blob([kml], { type: 'application/vnd.google-earth.kml+xml' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'swallacephoto-scout.kml';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function escapeXml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function openMyMaps() {
+  window.open('https://mymaps.google.com', '_blank');
+}
+
+function quickView() {
+  const first = photos.find(p => p.gps);
+  if (!first) return;
+  window.open(`https://www.google.com/maps?q=${first.gps.lat},${first.gps.lon}&t=k&z=16`, '_blank');
+}
+</script>
+</body>
+</html>
